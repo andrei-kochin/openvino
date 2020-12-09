@@ -13,8 +13,8 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
-from extensions.ops.interpolate import Interpolate
-from mo.front.common.partial_infer.utils import int64_array
+
+from extensions.ops.TFResizeBilinear import TFResizeBilinearOp
 from mo.front.extractor import FrontExtractorOp
 
 
@@ -24,10 +24,17 @@ class ResizeBilinearFrontExtractor(FrontExtractorOp):
 
     @classmethod
     def extract(cls, node):
-        mapping_rule = {
-            'align_corners': int(node.pb.attr['align_corners'].b),
-            'mode': 'linear',
-            'axes': int64_array([1, 2]),
+        align_corners = False
+        if 'align_corners' in node.pb.attr:
+            align_corners = node.pb.attr['align_corners'].b
+
+        half_pixel_centers = False
+        if 'half_pixel_centers' in node.pb.attr:
+            half_pixel_centers = node.pb.attr['half_pixel_centers'].b
+
+        attrs = {
+            'align_corners': align_corners,
+            'half_pixel_centers': half_pixel_centers
         }
-        Interpolate.update_node_stat(node, mapping_rule)
+        TFResizeBilinearOp.update_node_stat(node, attrs)
         return cls.enabled

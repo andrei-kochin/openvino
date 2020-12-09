@@ -40,12 +40,12 @@ def is_next(first: Node, second: Node) -> bool:
     :param second: another Interpolate layer
     :return: True, if 'first' is an predecessor of 'second', and False otherwise.
     """
-    if not node_has_one_consumer(first):
-        return False
     dests = first.out_port(0).get_destinations()
-    if len(dests) != 1:
-        return False
-    return second.id == dests[0].node.id
+    if node_has_one_consumer(first):
+        return second.id == dests[0].node.id
+    elif first.soft_get('maybe_part_of_sequence', False):
+        return len(dests) == 2 and second.id in [d.node.id for d in dests]
+    return False
 
 
 class CanBeFused:
@@ -131,7 +131,8 @@ class CanBeFused:
         :param second: the second of fused nodes
         :return: True, if nodes can be fused, and False otherwise
         """
-        if not self._compare_attributes(first, second):
+        if not (is_next(first, second) and self._compare_attributes(first, second)):
+            self.accumulated_axes = set()
             return False
 
         fst_axes = set([a for a in Interpolate.get_axes(first)])
@@ -267,6 +268,6 @@ class InterpolateSequenceToInterpolate(MiddleReplacementPattern):
         log.debug('Enabled replacement of a sequence of Interpolate layers with one Interpolate layer.')
         interps = [n for n in graph.pseudo_topological_sort() if n.kind == 'op' and n.op == 'Interpolate']
         fuser = CanBeFused()
-        sequences = group_by_with_binary_predicate(interps, lambda prev, x: is_next(prev, x) and fuser(prev, x))
+        sequences = group_by_with_binary_predicate(interps, fuser)
         for seq in sequences:
             replace_sequence(seq, graph)
