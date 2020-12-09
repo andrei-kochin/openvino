@@ -13,6 +13,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
+
 import numpy as np
 
 from extensions.ops.gather import Gather
@@ -27,7 +28,6 @@ from mo.ops.shape import Shape
 class InterpolateWithConcat(FrontReplacementPattern):
     """
     Replaces hard-coded 1-port input of Interpolate with reshape-able sub-graph using the following Concat inputs
-
     BEFORE:
             input                   Const
     shape=[1, 3, 30, 40]      value=[60, 160]
@@ -52,7 +52,6 @@ class InterpolateWithConcat(FrontReplacementPattern):
                         \                   /
                            Concat(axis=1)
                         shape=[1, 7, 60, 160]
-
     1. Searches for Interpolate operation which output is connected to Concat (through identity operation or directly).
         Interpolate -- [identity] --> Concat
     2. Checks that Interpolate has positive  axes parameter
@@ -64,10 +63,7 @@ class InterpolateWithConcat(FrontReplacementPattern):
     7. Otherwise, we take the first Concat source from the (5) item.
         Taking ShapeOf of this source and Gather'ing dimensions by the Interpolate::axes indices
         we connect them to the second Interpolate input
-
         This is how we get updated Interpolate second input that will fit the following Concat operation restrictions.
-
-
     We perform this transformation of the FRONT phase for MO to be able to reshape this Interpolate layer too.
     There is a similar transformation with less restrictions on the BACK phase.
     """
@@ -167,7 +163,7 @@ class InterpolateWithConcat(FrontReplacementPattern):
         interpolate.in_port(1).get_connection().set_source(gather.out_port(0))
 
     def find_and_replace_pattern(self, graph: Graph):
-        for interpolate in graph.get_op_nodes(type='Interpolate', version='opset1'):
+        for interpolate in graph.get_op_nodes(type='Interpolate'):
             if interpolate.in_port(1).get_source().node.soft_get('type') != 'Const':
                 continue
 

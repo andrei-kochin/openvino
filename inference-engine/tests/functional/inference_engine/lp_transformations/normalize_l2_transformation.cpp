@@ -15,7 +15,7 @@
 #include <low_precision/normalize_l2.hpp>
 
 #include "common_test_utils/ngraph_test_utils.hpp"
-#include "ngraph_functions/low_precision_transformations/normalize_l2_function.hpp"
+#include "lpt_ngraph_functions/normalize_l2_function.hpp"
 
 using namespace testing;
 using namespace ngraph::pass;
@@ -136,7 +136,7 @@ const std::vector<NormalizeL2TransformationTestValues> normalizeL2Transformation
 };
 
 INSTANTIATE_TEST_CASE_P(
-    LPT,
+    smoke_LPT,
     NormalizeL2Transformation,
     ::testing::Combine(
         ::testing::ValuesIn(precisions),

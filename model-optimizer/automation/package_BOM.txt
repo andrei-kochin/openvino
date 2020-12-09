@@ -135,6 +135,7 @@ extensions/front/input_cut.py
 extensions/front/instance_normalization.py
 extensions/front/interpolate_reshape.py
 extensions/front/InterpolateNormalizer.py
+extensions/front/InterpolateV1ToInterpolateV4.py
 extensions/front/kaldi/__init__.py
 extensions/front/kaldi/add_permute_after_convolution.py
 extensions/front/kaldi/add_reshape_around_convolution.py
@@ -257,6 +258,7 @@ extensions/front/onnx/detectionoutput_ext.py
 extensions/front/onnx/dropout_ext.py
 extensions/front/onnx/elementwise_ext.py
 extensions/front/onnx/expand_ext.py
+extensions/front/onnx/faster_rcnn.json
 extensions/front/onnx/flatten_ext.py
 extensions/front/onnx/flattenONNX_to_reshape.py
 extensions/front/onnx/gather_ext.py
@@ -548,6 +550,7 @@ extensions/middle/MulFakeQuantizeFuse.py
 extensions/middle/MXNetRNNSequenceNormalize.py
 extensions/middle/MXNetSplitMultiLayers.py
 extensions/middle/MXTileReplacer.py
+extensions/middle/ONNXResize10ToInterpolateV4.py
 extensions/middle/ONNXResize11ToInterpolateV4.py
 extensions/middle/ONNXRNNSequenceNormalize.py
 extensions/middle/PartialInfer.py
@@ -589,6 +592,8 @@ extensions/middle/TensorIteratorLSTMToLSTMSequence.py
 extensions/middle/TensorIteratorMerge.py
 extensions/middle/TensorIteratorOutput.py
 extensions/middle/TF_lstm_cell_to_generic.py
+extensions/middle/TFResizeBilinearToInterpolateV4.py
+extensions/middle/TFResizeNearestNeighborToInterpolateV4.py
 extensions/middle/UnsqueezeTileReshapeBlockToInterpolate.py
 extensions/middle/UpsampleToResample.py
 extensions/middle/UselessMerge.py
@@ -653,6 +658,7 @@ extensions/ops/non_zero.py
 extensions/ops/normalize.py
 extensions/ops/normalize_l2.py
 extensions/ops/one_hot.py
+extensions/ops/ONNXResize10.py
 extensions/ops/ONNXResize11.py
 extensions/ops/pack.py
 extensions/ops/parameter.py
@@ -673,7 +679,6 @@ extensions/ops/rank.py
 extensions/ops/ReduceOps.py
 extensions/ops/regionyolo.py
 extensions/ops/reorgyolo.py
-extensions/ops/resample.py
 extensions/ops/resize.py
 extensions/ops/resize_factor_utils.py
 extensions/ops/Reverse.py
@@ -709,6 +714,8 @@ extensions/ops/TensorArrayScatter.py
 extensions/ops/TensorArraySize.py
 extensions/ops/TensorArrayWrite.py
 extensions/ops/TensorIterator_ops.py
+extensions/ops/TFResizeBilinear.py
+extensions/ops/TFResizeNearestNeighbor.py
 extensions/ops/topk.py
 extensions/ops/topkrois_onnx.py
 extensions/ops/transpose.py

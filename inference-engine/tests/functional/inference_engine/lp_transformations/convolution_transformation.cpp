@@ -16,7 +16,7 @@
 
 #include "common_test_utils/ngraph_test_utils.hpp"
 #include "simple_low_precision_transformer.hpp"
-#include "ngraph_functions/low_precision_transformations/convolution_function.hpp"
+#include "lpt_ngraph_functions/convolution_function.hpp"
 
 using namespace testing;
 using namespace ngraph;
@@ -367,7 +367,7 @@ const std::vector<ConvolutionTransformationTestValues> testValues = {
 };
 
 INSTANTIATE_TEST_CASE_P(
-    LPT,
+    smoke_LPT,
     ConvolutionTransformation,
     ::testing::Combine(
         ::testing::ValuesIn(shapes),

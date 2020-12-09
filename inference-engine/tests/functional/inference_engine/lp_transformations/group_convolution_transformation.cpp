@@ -16,10 +16,10 @@
 
 #include "common_test_utils/ngraph_test_utils.hpp"
 #include "simple_low_precision_transformer.hpp"
-#include "ngraph_functions/low_precision_transformations/group_convolution_function.hpp"
+#include "lpt_ngraph_functions/group_convolution_function.hpp"
 
-#include "ngraph_functions/low_precision_transformations/common/fake_quantize_on_weights.hpp"
-#include "ngraph_functions/low_precision_transformations/common/dequantization_operations.hpp"
+#include "lpt_ngraph_functions/common/fake_quantize_on_weights.hpp"
+#include "lpt_ngraph_functions/common/dequantization_operations.hpp"
 
 using namespace testing;
 using namespace ngraph;
@@ -484,7 +484,7 @@ const std::vector<GroupConvolutionTestValues> testValues = {
 };
 
 INSTANTIATE_TEST_CASE_P(
-    LPT,
+    smoke_LPT,
     GroupConvolutionTransformation,
     ::testing::ValuesIn(testValues),
     GroupConvolutionTransformation::getTestCaseName);

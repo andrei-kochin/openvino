@@ -445,6 +445,17 @@ public:
         network_not_fused.set_input_data("input", input_prim);
 
         compare(network_not_fused, network_fused, p);
+        auto find_prim = [](primitive_info& p) -> bool {
+            // Add more ids when needed
+            if (p.original_id == "deconv_prim")
+                return true;
+            return false;
+        };
+
+        auto pi_fused = network_fused.get_primitives_info();
+        auto info_fused = std::find_if(pi_fused.begin(), pi_fused.end(), find_prim);
+        if (info_fused != pi_fused.end())
+            std::cout << "kernel: " << info_fused->kernel_id << std::endl;
     }
 
     layout get_input_layout(conv_eltw_test_params& p) {
@@ -632,6 +643,36 @@ INSTANTIATE_TEST_CASE_P(fusings_gpu, conv_fp32_scale,
                                              bc_test_params{CASE_CONV_FP32_10, 2, 3},
 
                                              // bc_test_params{CASE_CONV_FP16_1, 2, 3},
+                                             bc_test_params{CASE_CONV_FP16_2, 2, 3},
+                                             bc_test_params{CASE_CONV_FP16_3, 2, 3},
+                                             bc_test_params{CASE_CONV_FP16_4, 2, 3},
+                                             bc_test_params{CASE_CONV_FP16_10, 2, 3},
+                                             }), );
+
+class conv_fp32_bias : public ConvFusingTest {};
+TEST_P(conv_fp32_bias, basic) {
+    auto p = GetParam();
+    create_topologies(input_layout("input", get_input_layout(p)),
+                 data("weights", get_mem(get_weights_layout(p))),
+                 data("bias", get_mem(get_bias_layout(p))),
+                 convolution("conv_prim", "input", {"weights"}, std::vector<primitive_id>{}, p.groups, p.stride, p.pad, p.dilation),
+                 eltwise("add_bias", {"conv_prim", "bias"}, eltwise_mode::sum),
+                 reorder("reorder_bfyx", "add_bias", p.default_format, data_types::f32)
+    );
+
+    tolerance = 1e-5f;
+    execute(p);
+}
+
+INSTANTIATE_TEST_CASE_P(fusings_gpu, conv_fp32_bias,
+                        ::testing::ValuesIn(std::vector<bc_test_params>{
+                                             bc_test_params{CASE_CONV_FP32_1, 2, 3},
+                                             bc_test_params{CASE_CONV_FP32_2, 2, 3},
+                                             bc_test_params{CASE_CONV_FP32_3, 2, 3},
+                                             bc_test_params{CASE_CONV_FP32_4, 2, 3},
+                                             bc_test_params{CASE_CONV_FP32_10, 2, 3},
+
+                                             bc_test_params{CASE_CONV_FP16_1, 2, 3},
                                              bc_test_params{CASE_CONV_FP16_2, 2, 3},
                                              bc_test_params{CASE_CONV_FP16_3, 2, 3},
                                              bc_test_params{CASE_CONV_FP16_4, 2, 3},
@@ -2451,6 +2492,27 @@ INSTANTIATE_TEST_CASE_P(fusings_gpu, fc_fp32_activation, ::testing::ValuesIn(std
                                                                             bc_test_params{ CASE_FC_FP32_3, 2, 3 },
 }), );
 
+class fc_fp32_bias : public FCFusingTest {};
+TEST_P(fc_fp32_bias, basic) {
+    auto p = GetParam();
+    create_topologies(input_layout("input", get_input_layout(p)),
+                data("weights", get_mem(get_weights_layout(p))),
+                data("bias", get_mem(get_bias_layout(p))),
+                fully_connected("fc_prim", "input", "weights", ""),
+                eltwise("bias_add", {"fc_prim", "bias"}, eltwise_mode::sum),
+                reorder("reorder_bfyx", "bias_add", p.default_format, data_types::f32)
+    );
+
+    tolerance = 1e-5f;
+    execute(p);
+}
+
+INSTANTIATE_TEST_CASE_P(fusings_gpu, fc_fp32_bias, ::testing::ValuesIn(std::vector<bc_test_params>{
+                                                                            bc_test_params{ CASE_FC_FP32_1, 2, 3 },
+                                                                            bc_test_params{ CASE_FC_FP32_2, 2, 3 },
+                                                                            bc_test_params{ CASE_FC_FP32_3, 2, 3 },
+}), );
+
 class fc_int8_scale : public FCFusingTest {};
 TEST_P(fc_int8_scale, basic) {
     auto p = GetParam();
@@ -4042,6 +4104,58 @@ INSTANTIATE_TEST_CASE_P(fusings_gpu, deconv_actv,
         deconv_test_params{ CASE_DECONV_S8S8_3D_8, 2, 3 },
 }), );
 
+
+class deconv_bias : public DeconvolutionFusingTest {};
+TEST_P(deconv_bias, basic) {
+    auto p = GetParam();
+    create_topologies(
+        input_layout("input", get_input_layout(p)),
+        data("weights", get_mem(get_weights_layout(p))),
+        data("bias", get_mem(get_bias_layout(p))),
+        deconvolution("deconv", "input", { "weights" }, p.groups, p.stride, p.pad),
+        eltwise("bias_add", {"deconv", "bias"}, eltwise_mode::sum),
+        reorder("out", "bias_add", p.default_format, data_types::f32)
+    );
+    // Need much higher tolerance because of deconvolution -> convolution optimization
+    tolerance = 1.f;
+    execute(p);
+}
+
+INSTANTIATE_TEST_CASE_P(fusings_gpu, deconv_bias,
+    ::testing::ValuesIn(std::vector<deconv_test_params>{
+        deconv_test_params{ CASE_DECONV_FP32_1, 2, 3 },
+        deconv_test_params{ CASE_DECONV_FP32_2, 2, 3 },
+        deconv_test_params{ CASE_DECONV_FP32_3, 2, 3 },
+
+        deconv_test_params{ CASE_DECONV_FP16_1, 2, 3 },
+        deconv_test_params{ CASE_DECONV_FP16_2, 2, 3 },
+        deconv_test_params{ CASE_DECONV_FP16_3, 2, 3 },
+
+        deconv_test_params{ CASE_DECONV_U8S8_1, 2, 3 },
+        deconv_test_params{ CASE_DECONV_U8S8_2, 2, 3 },
+        deconv_test_params{ CASE_DECONV_U8S8_3, 2, 3 },
+
+        deconv_test_params{ CASE_DECONV_S8S8_1, 2, 3 },
+        deconv_test_params{ CASE_DECONV_S8S8_2, 2, 3 },
+        deconv_test_params{ CASE_DECONV_S8S8_3, 2, 3 },
+
+        deconv_test_params{ CASE_DECONV_FP32_3D_1, 2, 3 },
+        deconv_test_params{ CASE_DECONV_FP32_3D_2, 2, 3 },
+        deconv_test_params{ CASE_DECONV_FP32_3D_3, 2, 3 },
+
+        deconv_test_params{ CASE_DECONV_FP16_3D_1, 2, 3 },
+        deconv_test_params{ CASE_DECONV_FP16_3D_2, 2, 3 },
+        deconv_test_params{ CASE_DECONV_FP16_3D_3, 2, 3 },
+
+        deconv_test_params{ CASE_DECONV_U8S8_3D_1, 2, 3 },
+        deconv_test_params{ CASE_DECONV_U8S8_3D_2, 2, 3 },
+        deconv_test_params{ CASE_DECONV_U8S8_3D_3, 2, 3 },
+
+        deconv_test_params{ CASE_DECONV_S8S8_3D_1, 2, 3 },
+        deconv_test_params{ CASE_DECONV_S8S8_3D_2, 2, 3 },
+        deconv_test_params{ CASE_DECONV_S8S8_3D_3, 2, 3 },
+}), );
+
 class deconv_scale : public DeconvolutionFusingTest {};
 TEST_P(deconv_scale, basic) {
     auto p = GetParam();
@@ -4230,23 +4344,23 @@ TEST_P(deconv_scale_actv_quant_i8, basic) {
 
 INSTANTIATE_TEST_CASE_P(fusings_gpu, deconv_scale_actv_quant_i8,
     ::testing::ValuesIn(std::vector<deconv_test_params>{
-        deconv_test_params{ CASE_DECONV_FP32_1, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP32_2, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP32_3, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP32_4, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP32_5, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP32_6, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP32_7, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP32_8, 3, 5 },
+        deconv_test_params{ CASE_DECONV_FP32_1, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP32_2, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP32_3, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP32_4, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP32_5, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP32_6, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP32_7, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP32_8, 2, 5 },
 
-        deconv_test_params{ CASE_DECONV_FP16_1, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP16_2, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP16_3, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP16_4, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP16_5, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP16_6, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP16_7, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP16_8, 3, 5 },
+        deconv_test_params{ CASE_DECONV_FP16_1, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP16_2, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP16_3, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP16_4, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP16_5, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP16_6, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP16_7, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP16_8, 2, 5 },
 
         deconv_test_params{ CASE_DECONV_U8S8_1, 2, 5 },
         deconv_test_params{ CASE_DECONV_U8S8_2, 2, 5 },
@@ -4266,26 +4380,26 @@ INSTANTIATE_TEST_CASE_P(fusings_gpu, deconv_scale_actv_quant_i8,
         deconv_test_params{ CASE_DECONV_S8S8_7, 2, 5 },
         deconv_test_params{ CASE_DECONV_S8S8_8, 2, 5 },
 
-        deconv_test_params{ CASE_DECONV_FP32_3D_1, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP32_3D_2, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP32_3D_3, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP32_3D_4, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP32_3D_5, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP32_3D_6, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP32_3D_7, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP32_3D_8, 3, 5 },
+        deconv_test_params{ CASE_DECONV_FP32_3D_1, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP32_3D_2, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP32_3D_3, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP32_3D_4, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP32_3D_5, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP32_3D_6, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP32_3D_7, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP32_3D_8, 2, 5 },
         // FIXME no quantize implementation for bs_fs_yx_bsv16_fsv16 format AND add_required_reorders pass completely ruins data types
         // add_required_reorders pass tries to reorder everything to output type if no format exists, this ruins fp32 -> int8 quantize
         //deconv_test_params{ CASE_DECONV_FP32_3D_9, 3, 5 },
 
-        deconv_test_params{ CASE_DECONV_FP16_3D_1, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP16_3D_2, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP16_3D_3, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP16_3D_4, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP16_3D_5, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP16_3D_6, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP16_3D_7, 3, 5 },
-        deconv_test_params{ CASE_DECONV_FP16_3D_8, 3, 5 },
+        deconv_test_params{ CASE_DECONV_FP16_3D_1, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP16_3D_2, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP16_3D_3, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP16_3D_4, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP16_3D_5, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP16_3D_6, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP16_3D_7, 2, 5 },
+        deconv_test_params{ CASE_DECONV_FP16_3D_8, 2, 5 },
         //deconv_test_params{ CASE_DECONV_FP16_3D_9, 3, 5 },
 
         deconv_test_params{ CASE_DECONV_U8S8_3D_1, 2, 5 },
@@ -4341,23 +4455,23 @@ TEST_P(deconv_scale_actv_quant_u8_eltw_scale_actv_quant_i8, basic) {
 
 INSTANTIATE_TEST_CASE_P(fusings_gpu, deconv_scale_actv_quant_u8_eltw_scale_actv_quant_i8,
     ::testing::ValuesIn(std::vector<deconv_test_params>{
-        deconv_test_params{ CASE_DECONV_FP32_1, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP32_2, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP32_3, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP32_4, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP32_5, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP32_6, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP32_7, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP32_8, 4, 9 },
+        deconv_test_params{ CASE_DECONV_FP32_1, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP32_2, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP32_3, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP32_4, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP32_5, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP32_6, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP32_7, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP32_8, 2, 9 },
 
-        deconv_test_params{ CASE_DECONV_FP16_1, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP16_2, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP16_3, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP16_4, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP16_5, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP16_6, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP16_7, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP16_8, 4, 9 },
+        deconv_test_params{ CASE_DECONV_FP16_1, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP16_2, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP16_3, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP16_4, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP16_5, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP16_6, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP16_7, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP16_8, 2, 9 },
 
         deconv_test_params{ CASE_DECONV_U8S8_1, 2, 9 },
         deconv_test_params{ CASE_DECONV_U8S8_2, 2, 9 },
@@ -4377,24 +4491,24 @@ INSTANTIATE_TEST_CASE_P(fusings_gpu, deconv_scale_actv_quant_u8_eltw_scale_actv_
         deconv_test_params{ CASE_DECONV_S8S8_7, 2, 9 },
         deconv_test_params{ CASE_DECONV_S8S8_8, 2, 9 },
 
-        deconv_test_params{ CASE_DECONV_FP32_3D_1, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP32_3D_2, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP32_3D_3, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP32_3D_4, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP32_3D_5, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP32_3D_6, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP32_3D_7, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP32_3D_8, 4, 9 },
+        deconv_test_params{ CASE_DECONV_FP32_3D_1, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP32_3D_2, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP32_3D_3, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP32_3D_4, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP32_3D_5, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP32_3D_6, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP32_3D_7, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP32_3D_8, 2, 9 },
         // deconv_test_params{ CASE_DECONV_FP32_3D_9, 6, 9 },
 
-        deconv_test_params{ CASE_DECONV_FP16_3D_1, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP16_3D_2, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP16_3D_3, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP16_3D_4, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP16_3D_5, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP16_3D_6, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP16_3D_7, 4, 9 },
-        deconv_test_params{ CASE_DECONV_FP16_3D_8, 4, 9 },
+        deconv_test_params{ CASE_DECONV_FP16_3D_1, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP16_3D_2, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP16_3D_3, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP16_3D_4, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP16_3D_5, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP16_3D_6, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP16_3D_7, 2, 9 },
+        deconv_test_params{ CASE_DECONV_FP16_3D_8, 2, 9 },
         // deconv_test_params{ CASE_DECONV_FP16_3D_9, 6, 9 },
 
         deconv_test_params{ CASE_DECONV_U8S8_3D_1, 2, 9 },
@@ -4445,14 +4559,14 @@ TEST_P(deconv_scale_activation_quantize_i8_eltwise_quantize_u8, basic) {
 
 INSTANTIATE_TEST_CASE_P(fusings_gpu, deconv_scale_activation_quantize_i8_eltwise_quantize_u8,
                         ::testing::ValuesIn(std::vector<conv_eltw_test_params>{
-                                conv_eltw_test_params{CASE_DECONV_ELTW_FP32_1, 4, 7},
-                                conv_eltw_test_params{CASE_DECONV_ELTW_FP32_2, 4, 7},
-                                conv_eltw_test_params{CASE_DECONV_ELTW_FP32_3, 4, 7},
-                                conv_eltw_test_params{CASE_DECONV_ELTW_FP32_4, 4, 7},
-                                conv_eltw_test_params{CASE_DECONV_ELTW_FP32_5, 4, 7},
-                                conv_eltw_test_params{CASE_DECONV_ELTW_FP32_6, 4, 7},
-                                conv_eltw_test_params{CASE_DECONV_ELTW_FP32_7, 4, 7},
-                                conv_eltw_test_params{CASE_DECONV_ELTW_FP32_8, 4, 7},
+                                conv_eltw_test_params{CASE_DECONV_ELTW_FP32_1, 2, 7},
+                                conv_eltw_test_params{CASE_DECONV_ELTW_FP32_2, 2, 7},
+                                conv_eltw_test_params{CASE_DECONV_ELTW_FP32_3, 2, 7},
+                                conv_eltw_test_params{CASE_DECONV_ELTW_FP32_4, 2, 7},
+                                conv_eltw_test_params{CASE_DECONV_ELTW_FP32_5, 2, 7},
+                                conv_eltw_test_params{CASE_DECONV_ELTW_FP32_6, 2, 7},
+                                conv_eltw_test_params{CASE_DECONV_ELTW_FP32_7, 2, 7},
+                                conv_eltw_test_params{CASE_DECONV_ELTW_FP32_8, 2, 7},
 
                                 conv_eltw_test_params{CASE_DECONV_ELTW_i8_1, 2, 7},
                                 conv_eltw_test_params{CASE_DECONV_ELTW_i8_2, 2, 7},

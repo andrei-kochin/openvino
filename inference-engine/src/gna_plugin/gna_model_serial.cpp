@@ -115,10 +115,13 @@ GNAPluginNS::HeaderLatest::ModelHeader GNAModelSerial::ReadHeader(std::istream &
                     header = HeaderLatest::ModelHeader(tempHeader2dot2);
                     break;
                 case 3:
-                    readBits(header, is);
+                    readNBytes(&header, sizeof(Header2dot3::ModelHeader), is);
+                    break;
+                case 4:
+                    readNBytes(&header, sizeof(Header2dot4::ModelHeader), is);
                     break;
                 default:
-                    THROW_GNA_EXCEPTION << "Imported file unsupported. minor version should be equal to 1 or 2 and is: " << header.version.minor;
+                    THROW_GNA_EXCEPTION << "Imported file unsupported. minor version should have values in range 1 to 4 and is: " << header.version.minor;
             }
             break;
         default:
@@ -335,7 +338,9 @@ void GNAModelSerial::Export(void * basePointer, size_t gnaGraphSize, std::ostrea
     header.nRotateRows = nRotateRows;
     header.nRotateColumns = nRotateColumns;
     header.doRotateInput = doRotateInput;
-
+    header.nRotateOutputRows = nRotateOutputRows;
+    header.nRotateOutputColumns = nRotateOutputColumns;
+    header.doRotateOutput = doRotateOutput;
 
     writeBits(header, os);
 
